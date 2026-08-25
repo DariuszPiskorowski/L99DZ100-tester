@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "l99dz100-tester"
+version = "0.1.0"
+description = "Raspberry Pi test backend for the ST L99DZ100G"
+requires-python = ">=3.11"
+dependencies = ["fastapi>=0.110,<1", "uvicorn[standard]>=0.27,<1"]
+
+[project.optional-dependencies]
+rpi = ["spidev>=3.6,<4"]
+test = ["httpx>=0.27,<1", "pytest>=8,<9"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+

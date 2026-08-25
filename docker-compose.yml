@@ -1,0 +1,15 @@
+services:
+  l99-tester:
+    build: .
+    image: l99dz100-tester:local
+    restart: unless-stopped
+    environment:
+      L99_SPI_BACKEND: ${L99_SPI_BACKEND:-mock}
+      L99_SPI_BUS: ${L99_SPI_BUS:-0}
+      L99_SPI_DEVICE: ${L99_SPI_DEVICE:-0}
+      L99_SPI_SPEED_HZ: ${L99_SPI_SPEED_HZ:-500000}
+    devices:
+      - /dev/spidev0.0:/dev/spidev0.0
+    ports:
+      - "8000:8000"
+
