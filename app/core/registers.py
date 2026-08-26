@@ -1,7 +1,8 @@
-"""Register address map from ST DS11546 Rev 5, tables 75-77.
+"""L99DZ100G register map and reviewed profile constants.
 
-Only address, width and access semantics are encoded here. Bit fields should be
-added only after they have been transcribed and reviewed against the datasheet.
+Addresses are transcribed from ST DS11546 Rev 5, Table 86/87.
+Bit/profile constants below are added only where explicitly reviewed against
+DS11546 Rev 5 tables 88-117 and 142-143.
 """
 from dataclasses import dataclass
 from enum import Enum
@@ -21,12 +22,15 @@ class Register:
     width: int
 
 
-# CR1..CR34 are consecutive at 0x01..0x22 (Table 75).
+# CR1..CR29 occupy 0x01..0x1D. Addresses 0x1E..0x21 are reserved.
 APPLICATION_REGISTERS = {
     address: Register(address, f"CR{address}", Access.READ_WRITE, 24)
-    for address in range(0x01, 0x23)
+    for address in range(0x01, 0x1E)
 }
-# SR1..SR12 are consecutive at 0x31..0x3C (Table 75).
+# CR34 is at 0x22 (there are no CR30..CR33).
+APPLICATION_REGISTERS[0x22] = Register(0x22, "CR34", Access.READ_WRITE, 24)
+
+# SR1..SR12 are consecutive at 0x31..0x3C.
 APPLICATION_REGISTERS.update({
     address: Register(address, f"SR{address - 0x30}", Access.READ_CLEAR, 24)
     for address in range(0x31, 0x3D)
@@ -55,10 +59,33 @@ INFORMATION_REGISTERS = {
 
 EXPECTED_L99DZ100G_ID = bytes((0x00, 0x01, 0x55, 0x42, 0x46, 0x09, 0x01))
 
-# DS11546 Rev 5, CR4/CR5/CR6 (Tables 99-105): these three registers contain
-# the direct output-selection/control fields for OUT1..OUT15 and OUT_HS.
-# Their reset value is 0x000000; writing zero leaves these outputs off.
+# Reviewed control bits.
+CR1_HEN = 1 << 6                    # Table 89: external H-bridge enable
+CR11_ECON = 1 << 8                  # Table 117: electro-chrome controller enable
+CR11_ECV_LS = 1 << 13               # Table 117: ECV low-side switch
+SR1_DEBUG_ACTIVE = 1 << 16          # Table 143: live Debug Mode indicator
+
+# Direct integrated output registers, Tables 99-105.
 OUTPUT_CONTROL_REGISTERS = (0x04, 0x05, 0x06)
+
+# OUT1..OUT6 high-side bits in CR4: 21,17,13,9,5,1.
+# OUT7/8/10/OUT_HS use configuration 0001=ON in CR5.
+# OUT9/11/12/13/14/15 use configuration 0001=ON in CR6.
+OUTPUTS_HIGH_PROFILE = {
+    0x04: 0x222222,
+    0x05: 0x110101,
+    0x06: 0x111111,
+}
+
+# OUT1..OUT6 low-side bits in CR4: 20,16,12,8,4,0.
+# OUT7..OUT15 and OUT_HS are high-side-only and remain OFF in this profile.
+OUTPUTS_LOW_PROFILE = {
+    0x04: 0x111111,
+    0x05: 0x000000,
+    0x06: 0x000000,
+}
+
+STATUS_REGISTERS = tuple(range(0x31, 0x3D))
 
 
 def application_register(address: int) -> Register:
