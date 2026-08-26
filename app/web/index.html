@@ -24,21 +24,24 @@
     button:hover:not(:disabled) { background: #2d3846; transform: translateY(-1px); }
     button.primary { background: #285d9f; border-color: #3474c5; }
     button.primary:hover:not(:disabled) { background: #3270bd; }
-    button.danger { border-color: #8d3d44; background: #3a2024; color: #ffb6bb; }
-    button.danger:hover:not(:disabled) { background: #51292f; }
+    button.output { background: #24503a; border-color: #337552; }
+    button.output:hover:not(:disabled) { background: #2d6649; }
+    button.danger { background: #8a242c; border-color: #c63c47; color: #fff; }
+    button.danger:hover:not(:disabled) { background: #a52b35; }
     button:disabled { opacity: .38; cursor: not-allowed; }
     .wide { grid-column: 1 / -1; }
     .small { min-height: 38px; font-size: 13px; }
     .note { margin-top: 11px; color: #8895a5; font-size: 13px; line-height: 1.45; }
+    .safety-note { margin-top: 11px; border: 1px solid #5d5331; border-radius: 9px; background: #292515; color: #e9d78d; padding: 10px 11px; font-size: 13px; line-height: 1.45; }
     .kv { display: grid; grid-template-columns: 145px 1fr; gap: 8px; margin: 7px 0; font-size: 14px; }
     .kv span:first-child { color: #91a0b1; }
     .value { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
     .pass { color: #52d88b; font-weight: 800; }
     .fail { color: #ff737b; font-weight: 800; }
-    .pending { color: #f1c75b; font-weight: 800; }
     .result-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
     pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #0d1015; border: 1px solid #262d38; border-radius: 10px; padding: 13px; max-height: 330px; overflow: auto; color: #d8e1ec; }
     .table-wrap { margin-top: 18px; overflow: auto; max-height: 480px; border: 1px solid #29313d; border-radius: 10px; }
+    .live-table-wrap { margin-top: 10px; overflow: auto; max-height: 250px; border: 1px solid #29313d; border-radius: 10px; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th, td { padding: 8px 10px; border-bottom: 1px solid #252d38; text-align: left; white-space: nowrap; }
     th { position: sticky; top: 0; background: #202733; color: #aebac8; z-index: 1; }
@@ -63,16 +66,17 @@
       <section class="card">
         <h2>Test controls</h2>
         <div class="buttons">
-          <button class="primary" onclick="runTest('communication')">Communication</button>
-          <button class="primary" onclick="runTest('register_dump')">Register dump</button>
-          <button disabled title="Output profile not implemented yet">Outputs HIGH</button>
-          <button disabled title="Output profile not implemented yet">Outputs LOW</button>
+          <button data-action class="primary" onclick="runTest('communication')">Communication</button>
+          <button data-action class="primary" onclick="runTest('register_dump')">Register dump</button>
+          <button data-action class="output" onclick="runTest('outputs_high')">Outputs HIGH</button>
+          <button data-action class="output" onclick="runTest('outputs_low')">Outputs LOW</button>
           <button disabled title="Input profile not implemented yet">Inputs</button>
           <button disabled title="CAN adapter not implemented yet">CAN</button>
           <button disabled title="LIN adapter not implemented yet">LIN</button>
-          <button class="danger" onclick="runTest('all_off')" title="Write OFF state to CR4, CR5 and CR6">ALL OFF</button>
+          <button data-action class="danger" onclick="runTest('all_off')">ALL OFF</button>
         </div>
-        <div class="note">ALL OFF is the verified safe-state profile from ST DS11546 Rev 5: CR4, CR5 and CR6 are written to 0x000000 and read back. Other disabled controls remain inactive until their register profiles and hardware adapters are implemented. Loading this page does not send commands to the L99.</div>
+        <div class="safety-note">Outputs HIGH/LOW are hard-interlocked: the backend first verifies <b>SR1.DEBUG_ACTIVE = 1</b>. If Debug mode is absent, no output profile is written. Loss of Debug mode during a live profile triggers ALL OFF.</div>
+        <div class="note">Inputs, CAN and LIN remain intentionally inactive until their profiles/adapters are implemented. Loading this page itself does not send SPI commands to the L99.</div>
       </section>
 
       <section class="card" style="margin-top:18px">
@@ -81,7 +85,22 @@
         <div class="kv"><span>SPI backend</span><span id="spiBackend" class="value">—</span></div>
         <div class="kv"><span>Available tests</span><span id="availableTests" class="value">—</span></div>
         <div class="buttons" style="margin-top:12px">
-          <button class="small wide" onclick="readDeviceInfo()">Read device information</button>
+          <button data-action class="small wide" onclick="readDeviceInfo()">Read device information</button>
+        </div>
+      </section>
+
+      <section class="card" style="margin-top:18px">
+        <h2>Live diagnostics</h2>
+        <div class="kv"><span>Profile</span><span id="liveProfile" class="value">none</span></div>
+        <div class="kv"><span>Monitoring</span><span id="liveMonitoring" class="value">no</span></div>
+        <div class="kv"><span>DEBUG_ACTIVE</span><span id="liveDebug" class="value">not checked</span></div>
+        <div class="kv"><span>Last update</span><span id="liveUpdated" class="value">—</span></div>
+        <div class="kv"><span>Monitor error</span><span id="liveError" class="value">—</span></div>
+        <div id="liveStatusSection" class="hidden live-table-wrap">
+          <table>
+            <thead><tr><th>Status</th><th>Value</th><th>Global</th></tr></thead>
+            <tbody id="liveStatusRows"></tbody>
+          </table>
         </div>
       </section>
 
@@ -127,7 +146,7 @@
   }
 
   function setBusy(busy) {
-    document.querySelectorAll('button:not([disabled])').forEach(b => b.disabled = busy);
+    document.querySelectorAll('button[data-action]').forEach(b => b.disabled = busy);
   }
 
   function formatReport(title, data) {
@@ -158,14 +177,61 @@
     document.getElementById('registerSection').classList.toggle('hidden', !(rows && rows.length));
   }
 
+  function renderLiveStatus(data) {
+    document.getElementById('liveProfile').textContent = data.active_profile || 'none';
+    document.getElementById('liveMonitoring').textContent = data.monitoring ? 'yes' : 'no';
+    const debug = document.getElementById('liveDebug');
+    if (data.debug_active === true) {
+      debug.textContent = 'YES';
+      debug.className = 'value pass';
+    } else if (data.debug_active === false) {
+      debug.textContent = 'NO';
+      debug.className = 'value fail';
+    } else {
+      debug.textContent = 'not checked';
+      debug.className = 'value';
+    }
+    document.getElementById('liveUpdated').textContent = data.updated_at || '—';
+    const error = document.getElementById('liveError');
+    error.textContent = data.error || '—';
+    error.className = `value ${data.error ? 'fail' : ''}`;
+
+    const rows = data.registers || [];
+    const tbody = document.getElementById('liveStatusRows');
+    tbody.replaceChildren();
+    for (const row of rows) {
+      const tr = document.createElement('tr');
+      [row.name, row.value, row.global_status].forEach((value, index) => {
+        const td = document.createElement('td');
+        td.textContent = String(value ?? '');
+        if (index > 0) td.className = 'mono';
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    }
+    document.getElementById('liveStatusSection').classList.toggle('hidden', !rows.length);
+  }
+
+  async function refreshLiveStatus() {
+    try {
+      renderLiveStatus(await api('/api/v1/live-status'));
+    } catch (err) {
+      document.getElementById('liveError').textContent = err.message;
+      document.getElementById('liveError').className = 'value fail';
+    }
+  }
+
   async function runTest(name) {
     setBusy(true);
     try {
       const result = await api(`/api/v1/tests/${encodeURIComponent(name)}`, {method:'POST'});
-      showReport(`TEST: ${name.toUpperCase()} | ${result.passed ? 'PASS' : 'FAIL'}`, result);
+      const blocked = Boolean(result.details && result.details.blocked);
+      const verdict = blocked ? 'BLOCKED' : (result.passed ? 'PASS' : 'FAIL');
+      showReport(`TEST: ${name.toUpperCase()} | ${verdict}`, result);
       const rows = result.details && result.details.registers;
       renderRegisters(rows || []);
       if (name === 'communication' && result.details) updateDeviceInfo(result.details);
+      await refreshLiveStatus();
     } catch (err) {
       renderRegisters([]);
       showReport(`TEST: ${name.toUpperCase()} | ERROR`, {error: err.message});
@@ -213,13 +279,16 @@
       document.getElementById('apiState').textContent = health.status;
       document.getElementById('spiBackend').textContent = health.spi_backend;
       document.getElementById('availableTests').textContent = (tests.tests || []).join(', ') || 'none';
+      await refreshLiveStatus();
     } catch (err) {
       dot.className = 'dot bad';
       statusText.textContent = 'Backend: error';
       document.getElementById('apiState').textContent = err.message;
     }
   }
+
   init();
+  setInterval(refreshLiveStatus, 500);
 </script>
 </body>
 </html>
