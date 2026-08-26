@@ -1,8 +1,16 @@
 from dataclasses import asdict, dataclass
 from enum import IntEnum
+from threading import Lock
 
 from app.hal import SpiPort
-from .registers import Access, APPLICATION_REGISTERS, EXPECTED_L99DZ100G_ID, application_register
+from .registers import (
+    Access,
+    APPLICATION_REGISTERS,
+    EXPECTED_L99DZ100G_ID,
+    SR1_DEBUG_ACTIVE,
+    STATUS_REGISTERS,
+    application_register,
+)
 
 
 class Opcode(IntEnum):
@@ -24,12 +32,16 @@ class Response:
 class L99DZ100:
     def __init__(self, spi: SpiPort):
         self.spi = spi
+        # One L99 SPI frame at a time. This also protects real spidev when a
+        # background diagnostic monitor and an API request overlap.
+        self._io_lock = Lock()
 
     def _exchange(self, opcode: Opcode, address: int, payload: int = 0) -> Response:
         if not 0 <= address <= 0x3F or not 0 <= payload <= 0xFFFFFF:
             raise ValueError("address or 24-bit payload out of range")
         tx = bytes(((int(opcode) << 6) | address,)) + payload.to_bytes(3, "big")
-        rx = self.spi.transfer(tx)
+        with self._io_lock:
+            rx = self.spi.transfer(tx)
         if len(rx) != 4:
             raise IOError(f"SPI adapter returned {len(rx)} bytes, expected 4")
         return Response(rx[0], int.from_bytes(rx[1:], "big"))
@@ -64,6 +76,22 @@ class L99DZ100:
             "silicon_version": f"0x{silicon:02X}",
         }
 
+    def debug_active(self) -> bool:
+        return bool(self.read(0x31).payload & SR1_DEBUG_ACTIVE)
+
+    def status_dump(self) -> list[dict]:
+        rows = []
+        for address in STATUS_REGISTERS:
+            register = APPLICATION_REGISTERS[address]
+            response = self.read(address)
+            rows.append({
+                **asdict(register),
+                "access": register.access.value,
+                "value": f"0x{response.payload:06X}",
+                "global_status": f"0x{response.global_status:02X}",
+            })
+        return rows
+
     def dump(self) -> list[dict]:
         rows = []
         for address, register in sorted(APPLICATION_REGISTERS.items()):
@@ -72,4 +100,3 @@ class L99DZ100:
                          "value": f"0x{response.payload:06X}",
                          "global_status": f"0x{response.global_status:02X}"})
         return rows
-
