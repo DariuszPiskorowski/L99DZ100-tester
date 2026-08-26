@@ -1,13 +1,18 @@
 import os
 from dataclasses import asdict
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from app.core.device import L99DZ100
 from app.core.engine import TestEngine
 from app.mock import MockSpiPort
 from app.spi import SpidevPort
+
+
+WEB_INDEX = Path(__file__).with_name("web") / "index.html"
 
 
 def make_spi():
@@ -29,6 +34,11 @@ class WriteRequest(BaseModel):
 
 class ClearRequest(BaseModel):
     mask: int = Field(ge=0, le=0xFFFFFF)
+
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+def web_ui():
+    return HTMLResponse(WEB_INDEX.read_text(encoding="utf-8"))
 
 
 @app.get("/health")
@@ -81,4 +91,3 @@ def run_test(name: str):
         return asdict(engine.run(name))
     except ValueError as exc:
         raise HTTPException(404, str(exc)) from exc
-
