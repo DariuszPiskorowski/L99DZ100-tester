@@ -51,6 +51,13 @@ def device_info():
     return device.device_info()
 
 
+@app.get("/api/v1/live-status")
+def live_status():
+    # Cached data only. Loading/polling the web UI never initiates an SPI
+    # transaction by itself; the monitor is started by a live output profile.
+    return engine.live_status()
+
+
 @app.get("/api/v1/registers")
 def register_dump():
     return device.dump()
