@@ -4,6 +4,7 @@ from typing import Callable
 from uuid import uuid4
 
 from .device import L99DZ100
+from .registers import OUTPUT_CONTROL_REGISTERS
 
 
 @dataclass(frozen=True)
@@ -19,6 +20,7 @@ class TestEngine:
     def __init__(self, device: L99DZ100):
         self.device = device
         self._tests: dict[str, Callable[[], tuple[bool, dict]]] = {
+            "all_off": self._all_off,
             "communication": self._communication,
             "register_dump": self._register_dump,
         }
@@ -43,3 +45,25 @@ class TestEngine:
         rows = self.device.dump()
         return True, {"count": len(rows), "registers": rows}
 
+    def _all_off(self) -> tuple[bool, dict]:
+        before = {}
+        after = {}
+        for address in OUTPUT_CONTROL_REGISTERS:
+            before[f"CR{address}"] = self.device.read(address).as_dict()
+
+        for address in OUTPUT_CONTROL_REGISTERS:
+            self.device.write(address, 0x000000)
+
+        passed = True
+        for address in OUTPUT_CONTROL_REGISTERS:
+            response = self.device.read(address)
+            after[f"CR{address}"] = response.as_dict()
+            passed = passed and response.payload == 0
+
+        return passed, {
+            "profile": "ALL OFF",
+            "datasheet": "ST DS11546 Rev 5, CR4/CR5/CR6",
+            "written": {f"CR{address}": "0x000000" for address in OUTPUT_CONTROL_REGISTERS},
+            "before": before,
+            "after": after,
+        }
