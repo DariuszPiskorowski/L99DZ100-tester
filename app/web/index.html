@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>L99DZ100G Tester</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #101318; color: #e9eef5; }
+    .page { max-width: 1500px; margin: 0 auto; padding: 22px; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+    h1 { margin: 0; font-size: 30px; letter-spacing: .02em; }
+    .subtitle { color: #9aa8b8; margin-top: 5px; }
+    .status { display: flex; align-items: center; gap: 9px; border: 1px solid #303846; border-radius: 999px; padding: 9px 13px; background: #171c23; font-weight: 650; }
+    .dot { width: 11px; height: 11px; border-radius: 50%; background: #808a98; }
+    .dot.ok { background: #37c978; box-shadow: 0 0 12px #37c97870; }
+    .dot.bad { background: #ff5b65; box-shadow: 0 0 12px #ff5b6570; }
+    .grid { display: grid; grid-template-columns: 410px minmax(0, 1fr); gap: 18px; }
+    .card { border: 1px solid #2b3340; border-radius: 14px; background: #171c23; padding: 17px; box-shadow: 0 10px 28px #00000022; }
+    .card h2 { margin: 0 0 13px; font-size: 17px; color: #f4f7fb; }
+    .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    button { border: 1px solid #3c4757; border-radius: 10px; background: #232b36; color: #f0f4f8; min-height: 52px; padding: 10px 12px; font-size: 15px; font-weight: 700; cursor: pointer; transition: .15s ease; }
+    button:hover:not(:disabled) { background: #2d3846; transform: translateY(-1px); }
+    button.primary { background: #285d9f; border-color: #3474c5; }
+    button.primary:hover:not(:disabled) { background: #3270bd; }
+    button.danger { border-color: #6b3438; color: #ffb6bb; }
+    button:disabled { opacity: .38; cursor: not-allowed; }
+    .wide { grid-column: 1 / -1; }
+    .small { min-height: 38px; font-size: 13px; }
+    .note { margin-top: 11px; color: #8895a5; font-size: 13px; line-height: 1.45; }
+    .kv { display: grid; grid-template-columns: 145px 1fr; gap: 8px; margin: 7px 0; font-size: 14px; }
+    .kv span:first-child { color: #91a0b1; }
+    .value { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+    .pass { color: #52d88b; font-weight: 800; }
+    .fail { color: #ff737b; font-weight: 800; }
+    .pending { color: #f1c75b; font-weight: 800; }
+    .result-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+    pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #0d1015; border: 1px solid #262d38; border-radius: 10px; padding: 13px; max-height: 330px; overflow: auto; color: #d8e1ec; }
+    .table-wrap { margin-top: 18px; overflow: auto; max-height: 480px; border: 1px solid #29313d; border-radius: 10px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 8px 10px; border-bottom: 1px solid #252d38; text-align: left; white-space: nowrap; }
+    th { position: sticky; top: 0; background: #202733; color: #aebac8; z-index: 1; }
+    td.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .hidden { display: none; }
+    footer { color: #6f7c8d; font-size: 12px; margin-top: 14px; text-align: right; }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } header { align-items: flex-start; flex-direction: column; } }
+  </style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div>
+      <h1>L99DZ100G Tester</h1>
+      <div class="subtitle">Isolated IC diagnostic workstation</div>
+    </div>
+    <div class="status"><span id="statusDot" class="dot"></span><span id="statusText">Backend: checking…</span></div>
+  </header>
+
+  <div class="grid">
+    <div>
+      <section class="card">
+        <h2>Test controls</h2>
+        <div class="buttons">
+          <button class="primary" onclick="runTest('communication')">Communication</button>
+          <button class="primary" onclick="runTest('register_dump')">Register dump</button>
+          <button disabled title="Output profile not implemented yet">Outputs HIGH</button>
+          <button disabled title="Output profile not implemented yet">Outputs LOW</button>
+          <button disabled title="Input profile not implemented yet">Inputs</button>
+          <button disabled title="CAN adapter not implemented yet">CAN</button>
+          <button disabled title="LIN adapter not implemented yet">LIN</button>
+          <button class="danger" disabled title="Safe-state profile not implemented yet">ALL OFF</button>
+        </div>
+        <div class="note">Disabled controls are intentionally inactive until their register profiles and hardware adapters are implemented. Loading this page does not send commands to the L99.</div>
+      </section>
+
+      <section class="card" style="margin-top:18px">
+        <h2>Backend</h2>
+        <div class="kv"><span>API</span><span id="apiState" class="value">—</span></div>
+        <div class="kv"><span>SPI backend</span><span id="spiBackend" class="value">—</span></div>
+        <div class="kv"><span>Available tests</span><span id="availableTests" class="value">—</span></div>
+        <div class="buttons" style="margin-top:12px">
+          <button class="small wide" onclick="readDeviceInfo()">Read device information</button>
+        </div>
+      </section>
+
+      <section class="card" style="margin-top:18px">
+        <h2>Device information</h2>
+        <div class="kv"><span>Variant</span><span id="variant" class="value">not read</span></div>
+        <div class="kv"><span>Raw ID</span><span id="rawId" class="value">—</span></div>
+        <div class="kv"><span>Silicon</span><span id="silicon" class="value">—</span></div>
+        <div class="kv"><span>Identification</span><span id="deviceMatch" class="value">—</span></div>
+      </section>
+    </div>
+
+    <div>
+      <section class="card">
+        <div class="result-head">
+          <h2 style="margin:0">Test report / response</h2>
+          <button id="downloadBtn" class="small" disabled onclick="downloadReport()">Download TXT</button>
+        </div>
+        <pre id="report">No test has been run.</pre>
+        <div id="registerSection" class="hidden">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Address</th><th>Name</th><th>Access</th><th>Value</th><th>Global status</th></tr></thead>
+              <tbody id="registerRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+  <footer>Swagger API remains available at <span class="value">/docs</span></footer>
+</div>
+<script>
+  let lastReportText = '';
+
+  async function api(path, options) {
+    const response = await fetch(path, options);
+    const text = await response.text();
+    let data;
+    try { data = text ? JSON.parse(text) : {}; } catch { data = {raw: text}; }
+    if (!response.ok) throw new Error(data.detail || data.raw || `HTTP ${response.status}`);
+    return data;
+  }
+
+  function setBusy(busy) {
+    document.querySelectorAll('button:not([disabled])').forEach(b => b.disabled = busy);
+  }
+
+  function formatReport(title, data) {
+    const now = new Date().toLocaleString();
+    return `L99DZ100G TESTER\n${title}\nTime: ${now}\n\n${JSON.stringify(data, null, 2)}`;
+  }
+
+  function showReport(title, data) {
+    lastReportText = formatReport(title, data);
+    document.getElementById('report').textContent = lastReportText;
+    document.getElementById('downloadBtn').disabled = false;
+  }
+
+  function renderRegisters(rows) {
+    const tbody = document.getElementById('registerRows');
+    tbody.replaceChildren();
+    for (const row of rows || []) {
+      const tr = document.createElement('tr');
+      const values = [row.address, row.name, row.access, row.value, row.global_status];
+      values.forEach((value, i) => {
+        const td = document.createElement('td');
+        td.textContent = i === 0 && Number.isInteger(value) ? `0x${value.toString(16).toUpperCase().padStart(2,'0')}` : String(value ?? '');
+        if (i === 0 || i >= 3) td.className = 'mono';
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    }
+    document.getElementById('registerSection').classList.toggle('hidden', !(rows && rows.length));
+  }
+
+  async function runTest(name) {
+    setBusy(true);
+    try {
+      const result = await api(`/api/v1/tests/${encodeURIComponent(name)}`, {method:'POST'});
+      showReport(`TEST: ${name.toUpperCase()} | ${result.passed ? 'PASS' : 'FAIL'}`, result);
+      const rows = result.details && result.details.registers;
+      renderRegisters(rows || []);
+      if (name === 'communication' && result.details) updateDeviceInfo(result.details);
+    } catch (err) {
+      renderRegisters([]);
+      showReport(`TEST: ${name.toUpperCase()} | ERROR`, {error: err.message});
+    } finally { setBusy(false); }
+  }
+
+  function updateDeviceInfo(info) {
+    document.getElementById('variant').textContent = info.variant ?? '—';
+    document.getElementById('rawId').textContent = info.raw_id ?? '—';
+    document.getElementById('silicon').textContent = info.silicon_version ?? '—';
+    const match = document.getElementById('deviceMatch');
+    match.textContent = info.is_l99dz100g ? 'PASS — L99DZ100G' : 'FAIL / unknown device';
+    match.className = `value ${info.is_l99dz100g ? 'pass' : 'fail'}`;
+  }
+
+  async function readDeviceInfo() {
+    setBusy(true);
+    try {
+      const info = await api('/api/v1/device-info');
+      updateDeviceInfo(info);
+      showReport('DEVICE INFORMATION', info);
+      renderRegisters([]);
+    } catch (err) {
+      showReport('DEVICE INFORMATION | ERROR', {error: err.message});
+    } finally { setBusy(false); }
+  }
+
+  function downloadReport() {
+    if (!lastReportText) return;
+    const blob = new Blob([lastReportText + '\n'], {type:'text/plain;charset=utf-8'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `l99dz100-report-${new Date().toISOString().replace(/[:.]/g,'-')}.txt`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  async function init() {
+    const dot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    try {
+      const [health, tests] = await Promise.all([api('/health'), api('/api/v1/tests')]);
+      dot.className = 'dot ok';
+      statusText.textContent = 'Backend: online';
+      document.getElementById('apiState').textContent = health.status;
+      document.getElementById('spiBackend').textContent = health.spi_backend;
+      document.getElementById('availableTests').textContent = (tests.tests || []).join(', ') || 'none';
+    } catch (err) {
+      dot.className = 'dot bad';
+      statusText.textContent = 'Backend: error';
+      document.getElementById('apiState').textContent = err.message;
+    }
+  }
+  init();
+</script>
+</body>
+</html>
