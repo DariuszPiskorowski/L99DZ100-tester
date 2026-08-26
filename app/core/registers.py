@@ -55,10 +55,14 @@ INFORMATION_REGISTERS = {
 
 EXPECTED_L99DZ100G_ID = bytes((0x00, 0x01, 0x55, 0x42, 0x46, 0x09, 0x01))
 
+# DS11546 Rev 5, CR4/CR5/CR6 (Tables 99-105): these three registers contain
+# the direct output-selection/control fields for OUT1..OUT15 and OUT_HS.
+# Their reset value is 0x000000; writing zero leaves these outputs off.
+OUTPUT_CONTROL_REGISTERS = (0x04, 0x05, 0x06)
+
 
 def application_register(address: int) -> Register:
     try:
         return APPLICATION_REGISTERS[address]
     except KeyError as exc:
         raise ValueError(f"invalid application register address: 0x{address:02X}") from exc
-
